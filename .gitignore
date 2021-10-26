@@ -1,3 +1,4 @@
 submission/*.csv
 saved/*.pt
 *.pyc
+vis/*
