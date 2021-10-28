@@ -2,3 +2,4 @@ submission/*.csv
 saved/*
 *.pyc
 vis/*
+test/*
