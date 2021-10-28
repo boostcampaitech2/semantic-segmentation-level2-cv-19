@@ -121,7 +121,8 @@ def plot_examples(dataloaer, model, save_dir, save_file_name, class_colormap, de
 
                     model.eval()
                     # inference
-                    outs = model(torch.stack(temp_images).to(device))['out']
+                    # outs = model(torch.stack(temp_images).to(device))['out']
+                    outs = model(torch.stack(temp_images).to(device))
                     oms = torch.argmax(outs, dim=1).detach().cpu().numpy()
 
                     break
@@ -155,7 +156,8 @@ def plot_examples(dataloaer, model, save_dir, save_file_name, class_colormap, de
                     model.eval()
                     
                     # inference
-                    outs = model(torch.stack(temp_images).to(device))['out']
+                    # outs = model(torch.stack(temp_images).to(device))['out']
+                    outs = model(torch.stack(temp_images).to(device))
                     oms = torch.argmax(outs, dim=1).detach().cpu().numpy()
                     break
                 else:
