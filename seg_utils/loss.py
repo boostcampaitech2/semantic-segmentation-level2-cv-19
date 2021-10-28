@@ -2,6 +2,14 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+class CrossEntropyLoss(nn.Module):
+    def __init__(self):
+        super(CrossEntropyLoss, self).__init__()
+        self.criterion = nn.CrossEntropyLoss()
+
+    def forward(self, input_tensor, target_tensor):
+        return self.criterion(input_tensor, target_tensor)
+
 
 class FocalLoss(nn.Module):
     def __init__(self, weight=None,
