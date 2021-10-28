@@ -1,6 +1,7 @@
 import os
 import numpy as np
 import torch
+from torch.optim.lr_scheduler import StepLR
 import albumentations as A
 from tqdm import tqdm
 from seg_utils.utils import label_accuracy_score, add_hist
@@ -10,6 +11,9 @@ def train(num_epochs, model, data_loader, val_loader, criterion, optimizer, save
     print(f'Start training..')
     n_class = 11
     best_loss = 9999999
+    
+    # scheduler
+    scheduler = StepLR(optimizer, 20, gamma=0.1)
     
     for epoch in range(num_epochs):
         model.train()
@@ -26,7 +30,8 @@ def train(num_epochs, model, data_loader, val_loader, criterion, optimizer, save
             model = model.to(device)
             
             # inference
-            outputs = model(images)['out']
+            # outputs = model(images)['out']
+            outputs = model(images)
             
             # loss 계산 (cross entropy loss)
             loss = criterion(outputs, masks)
@@ -54,6 +59,8 @@ def train(num_epochs, model, data_loader, val_loader, criterion, optimizer, save
                 best_loss = avrg_loss
                 save_model(model, saved_dir, file_name=file_name)
 
+        scheduler.step()
+
 
 def validation(epoch, model, data_loader, criterion, device):
     print(f'Start validation #{epoch}')
@@ -75,7 +82,8 @@ def validation(epoch, model, data_loader, criterion, device):
             # device 할당
             model = model.to(device)
             
-            outputs = model(images)['out']
+            # outputs = model(images)['out']
+            outputs = model(images)
             loss = criterion(outputs, masks)
             total_loss += loss
             cnt += 1
@@ -115,7 +123,8 @@ def test(model, test_loader, device):
         for step, (imgs, image_infos) in enumerate(tqdm(test_loader)):
             
             # inference (512 x 512)
-            outs = model(torch.stack(imgs).to(device))['out']
+            # outs = model(torch.stack(imgs).to(device))['out']
+            outs = model(torch.stack(imgs).to(device))
             oms = torch.argmax(outs.squeeze(), dim=1).detach().cpu().numpy()
             
             # resize (256 x 256)
