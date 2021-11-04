@@ -421,7 +421,10 @@ class HighResolutionNet(nn.Module):
         extra = config.MODEL.EXTRA
         super(HighResolutionNet, self).__init__()
         ALIGN_CORNERS = config.MODEL.ALIGN_CORNERS
-
+        if 'mode' in kwargs:
+            self.mode = kwargs['mode']
+            print(f'HRN mode is {self.mode}')        
+            
         # stem net
         self.conv1 = nn.Conv2d(3, 64, kernel_size=3, stride=2, padding=1,
                                bias=False)
@@ -645,7 +648,12 @@ class HighResolutionNet(nn.Module):
         out_aux_seg.append(out_aux)
         out_aux_seg.append(out)
 
-        return out_aux_seg
+#        return out_aux_seg
+        if self.mode != 'test':
+            return out_aux_seg
+        else:
+            return out
+        
 
     def init_weights(self, pretrained='',):
         logger.info('=> init weights from normal distribution')
@@ -681,3 +689,4 @@ def get_seg_model(cfg, **kwargs):
     model.init_weights(cfg.MODEL.PRETRAINED)
 
     return model
+
