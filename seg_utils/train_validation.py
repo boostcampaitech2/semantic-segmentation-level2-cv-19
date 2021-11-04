@@ -4,7 +4,7 @@ import torch
 from torch.optim.lr_scheduler import StepLR
 import albumentations as A
 from tqdm import tqdm
-from seg_utils.utils import label_accuracy_score, add_hist
+from seg_utils.utils import label_accuracy_score, add_hist, DenseCRF
 
 
 def train(num_epochs, model, data_loader, val_loader, criterion, optimizer, saved_dir, file_name, val_every, device):
@@ -110,7 +110,16 @@ def save_model(model, saved_dir, file_name='model.pt'):
     torch.save(model, output_path)
 
 
-def test(model, test_loader, device):
+def batch_crf(imgs, outs, dense_crf):
+    crf_outs = list()
+    for img, out in zip(imgs, outs):
+        crf_prob = dense_crf(img,out)
+        crf_outs.append(crf_prob)
+    crf_outs = torch.cat(crf_outs, 0)
+    return crf_outs
+
+
+def test(model, test_loader, device, crf_mode=True):
     size = 256
     transform = A.Compose([A.Resize(size, size)])
     print('Start prediction.')
@@ -119,12 +128,20 @@ def test(model, test_loader, device):
     file_name_list = []
     preds_array = np.empty((0, size*size), dtype=np.long)
     
+    # DenseCRF 선언
+    if crf_mode==True:
+        dense_crf = DenseCRF()
+        
     with torch.no_grad():
         for step, (imgs, image_infos) in enumerate(tqdm(test_loader)):
             
             # inference (512 x 512)
             # outs = model(torch.stack(imgs).to(device))['out']
             outs = model(torch.stack(imgs).to(device))
+
+            if crf_mode == True:
+                outs = batch_crf(imgs, outs, dense_crf)
+
             oms = torch.argmax(outs.squeeze(), dim=1).detach().cpu().numpy()
             
             # resize (256 x 256)
@@ -140,8 +157,11 @@ def test(model, test_loader, device):
             preds_array = np.vstack((preds_array, oms))
             
             file_name_list.append([i['file_name'] for i in image_infos])
+            
     print("End prediction.")
     file_names = [y for x in file_name_list for y in x]
     
     return file_names, preds_array
 
+
+    

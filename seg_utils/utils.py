@@ -5,6 +5,8 @@ import pandas as pd
 from matplotlib.patches import Patch
 import matplotlib.pyplot as plt
 import torch
+import torch.nn.functional as F
+
 
 
 def _fast_hist(label_true, label_pred, n_class):
@@ -146,7 +148,7 @@ def plot_examples(dataloaer, model, save_dir, save_file_name, class_colormap, de
         plt.savefig(os.path.join(save_dir, save_file_name))
     
     # test set에 대한 시각화
-    else :
+    elif (mode in ('test')):
         with torch.no_grad():
             for index, (imgs, image_infos) in enumerate(dataloaer):
                 if index == batch_id:
@@ -176,3 +178,313 @@ def plot_examples(dataloaer, model, save_dir, save_file_name, class_colormap, de
             
         # plt.show()
         plt.savefig(os.path.join(save_dir, save_file_name))
+    elif (mode in ('test_crf')):
+        dense_crf = DenseCRF()
+        with torch.no_grad():
+            for index, (imgs, image_infos) in enumerate(dataloaer):
+                if index == batch_id:
+                    image_infos = image_infos
+                    temp_images = imgs
+
+                    model.eval()
+                    
+                    # inference
+                    # outs = model(torch.stack(temp_images).to(device))['out']
+                    outs = model(torch.stack(temp_images).to(device))
+
+                    # crf 추가
+                    crf_outs = list()
+                    for img, out in zip(imgs, outs):
+                        crf_prob = dense_crf(img,out)
+                        crf_outs.append(crf_prob)
+
+                    oms = torch.argmax(torch.cat(crf_outs, 0), dim=1).detach().cpu().numpy()
+                    break
+                else:
+                    continue
+    
+        fig, ax = plt.subplots(nrows=num_examples, ncols=2, figsize=(10, 4*num_examples), constrained_layout=True)
+
+        for row_num in range(num_examples):
+            # Original Image
+            ax[row_num][0].imshow(temp_images[row_num].permute([1,2,0]))
+            ax[row_num][0].set_title(f"Orignal Image : {image_infos[row_num]['file_name']}")
+            # Pred Mask
+            ax[row_num][1].imshow(label_to_color_image(oms[row_num], class_colormap))
+            ax[row_num][1].set_title(f"Pred Mask : {image_infos[row_num]['file_name']}")
+            ax[row_num][1].legend(handles=legend_elements, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0)
+            
+        # plt.show()
+        plt.savefig(os.path.join(save_dir, save_file_name))
+    elif (mode in ('train_crf', 'val_crf')):
+        dense_crf = DenseCRF()
+        with torch.no_grad():
+            for index, (imgs, masks, image_infos) in enumerate(dataloaer):
+                if index == batch_id:
+                    image_infos = image_infos
+                    temp_images = imgs
+                    temp_masks = masks
+
+                    model.eval()
+                    # inference
+                    # outs = model(torch.stack(temp_images).to(device))['out']
+                    outs = model(torch.stack(temp_images).to(device))
+                    
+                    # crf 추가
+                    crf_outs = list()
+                    for img, out in zip(imgs, outs):
+                        crf_prob = dense_crf(img,out)
+                        crf_outs.append(crf_prob)
+
+                    oms = torch.argmax(torch.cat(crf_outs, 0), dim=1).detach().cpu().numpy()
+
+                    break
+                else:
+                    continue
+    
+        fig, ax = plt.subplots(nrows=num_examples, ncols=3, figsize=(12, 4*num_examples), constrained_layout=True)
+        fig.tight_layout()
+        for row_num in range(num_examples):
+            # Original Image
+            ax[row_num][0].imshow(temp_images[row_num].permute([1,2,0]))
+            ax[row_num][0].set_title(f"Orignal Image : {image_infos[row_num]['file_name']}")
+            # Groud Truth
+            ax[row_num][1].imshow(label_to_color_image(masks[row_num].detach().cpu().numpy(), class_colormap))
+            ax[row_num][1].set_title(f"Groud Truth : {image_infos[row_num]['file_name']}")
+            # Pred Mask
+            ax[row_num][2].imshow(label_to_color_image(oms[row_num], class_colormap))
+            ax[row_num][2].set_title(f"Pred Mask : {image_infos[row_num]['file_name']}")
+            ax[row_num][2].legend(handles=legend_elements, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0)
+        # plt.show()
+        plt.savefig(os.path.join(save_dir, save_file_name))
+    
+    # test set에 대한 시각화
+    else:
+        print('unknown mode')
+
+
+
+
+
+def plot_examples_plus(dataloaer, model, save_dir, save_file_name, class_colormap, device, mode="train", batch_id=0, num_examples=4):
+    """Visualization of images and masks according to batch size
+    Args:
+        mode: train/val/test (str)
+        batch_id : 0 (int) 
+        num_examples : 1 ~ batch_size(e.g. 8) (int)
+        dataloaer : data_loader (dataloader) 
+    Returns:
+        None
+    """
+    
+    # variable for legend
+    category_and_rgb = [[category, (r,g,b)] for idx, (category, r, g, b) in enumerate(class_colormap.values)]
+    legend_elements = [Patch(facecolor=webcolors.rgb_to_hex(rgb), 
+                             edgecolor=webcolors.rgb_to_hex(rgb), 
+                             label=category) for category, rgb in category_and_rgb]
+    
+    # test / validation set에 대한 시각화
+    if (mode in ('train', 'val')):
+        with torch.no_grad():
+            for index, (imgs, masks, image_infos) in enumerate(dataloaer):
+                if index == batch_id:
+                    image_infos = image_infos
+                    temp_images = imgs
+                    temp_masks = masks
+
+                    model.eval()
+                    # inference
+                    # outs = model(torch.stack(temp_images).to(device))['out']
+                    outs = model(torch.stack(temp_images).to(device))
+                    oms = torch.argmax(outs, dim=1).detach().cpu().numpy()
+
+                    break
+                else:
+                    continue
+    
+        fig, ax = plt.subplots(nrows=num_examples, ncols=3, figsize=(12, 4*num_examples), constrained_layout=True)
+        fig.tight_layout()
+        for row_num in range(num_examples):
+            # Original Image
+            ax[row_num][0].imshow(temp_images[row_num].permute([1,2,0]))
+            ax[row_num][0].set_title(f"Orignal Image : {image_infos[row_num]['file_name']}")
+            # Groud Truth
+            ax[row_num][1].imshow(label_to_color_image(masks[row_num].detach().cpu().numpy(), class_colormap))
+            ax[row_num][1].set_title(f"Groud Truth : {image_infos[row_num]['file_name']}")
+            # Pred Mask
+            ax[row_num][2].imshow(label_to_color_image(oms[row_num], class_colormap))
+            ax[row_num][2].set_title(f"Pred Mask : {image_infos[row_num]['file_name']}")
+            ax[row_num][2].legend(handles=legend_elements, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0)
+        # plt.show()
+        plt.savefig(os.path.join(save_dir, save_file_name))
+    
+    # test set에 대한 시각화
+    elif (mode in ('test')):
+        with torch.no_grad():
+            for index, (imgs, image_infos) in enumerate(dataloaer):
+                if index == batch_id:
+                    image_infos = image_infos
+                    temp_images = imgs
+
+                    model.eval()
+                    
+                    # inference
+                    # outs = model(torch.stack(temp_images).to(device))['out']
+                    outs = model(torch.stack(temp_images).to(device))
+                    oms = torch.argmax(outs, dim=1).detach().cpu().numpy()
+                    break
+                else:
+                    continue
+    
+        fig, ax = plt.subplots(nrows=num_examples, ncols=2, figsize=(10, 4*num_examples), constrained_layout=True)
+
+        for row_num in range(num_examples):
+            # Original Image
+            ax[row_num][0].imshow(temp_images[row_num].permute([1,2,0]))
+            ax[row_num][0].set_title(f"Orignal Image : {image_infos[row_num]['file_name']}")
+            # Pred Mask
+            ax[row_num][1].imshow(label_to_color_image(oms[row_num], class_colormap))
+            ax[row_num][1].set_title(f"Pred Mask : {image_infos[row_num]['file_name']}")
+            ax[row_num][1].legend(handles=legend_elements, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0)
+            
+        # plt.show()
+        plt.savefig(os.path.join(save_dir, save_file_name))
+    elif (mode in ('test_crf')):
+        dense_crf = DenseCRF()
+        with torch.no_grad():
+            for index, (imgs, image_infos) in enumerate(dataloaer):
+                if index == batch_id:
+                    image_infos = image_infos
+                    temp_images = imgs
+
+                    model.eval()
+                    
+                    # inference
+                    # outs = model(torch.stack(temp_images).to(device))['out']
+                    outs = model(torch.stack(temp_images).to(device))
+
+                    # crf 추가
+                    crf_outs = list()
+                    probs = F.softmax(outs, dim=1)
+
+                    for img, out in zip(imgs, probs):
+                        crf_prob = dense_crf(img,out)
+                        crf_outs.append(crf_prob)
+
+                    oms = torch.argmax(torch.cat(crf_outs, 0), dim=1).detach().cpu().numpy()
+                    break
+                else:
+                    continue
+    
+        fig, ax = plt.subplots(nrows=num_examples, ncols=3, figsize=(15, 4*num_examples), constrained_layout=True)
+
+        for row_num in range(num_examples):
+            # Original Image
+            ax[row_num][0].imshow(temp_images[row_num].permute([1,2,0]))
+            ax[row_num][0].set_title(f"Orignal Image : {image_infos[row_num]['file_name']}")
+            # Pred Mask
+            ax[row_num][1].imshow(label_to_color_image(oms[row_num], class_colormap))
+            ax[row_num][1].set_title(f"Pred Mask : {image_infos[row_num]['file_name']}")
+            ax[row_num][1].legend(handles=legend_elements, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0)
+            # 곂치기
+            original_img = temp_images[row_num].permute([1,2,0])
+            seg_map = label_to_color_image(oms[row_num], class_colormap)
+            ax[row_num][2].imshow(0.7*original_img+0.3*seg_map/255)
+            ax[row_num][2].set_title(f"img : {image_infos[row_num]['file_name']}")
+            ax[row_num][2].legend(handles=legend_elements, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0)
+            
+        # plt.show()
+        plt.savefig(os.path.join(save_dir, save_file_name))
+    elif (mode in ('train_crf', 'val_crf')):
+        dense_crf = DenseCRF()
+        with torch.no_grad():
+            for index, (imgs, masks, image_infos) in enumerate(dataloaer):
+                if index == batch_id:
+                    image_infos = image_infos
+                    temp_images = imgs
+                    temp_masks = masks
+
+                    model.eval()
+                    # inference
+                    # outs = model(torch.stack(temp_images).to(device))['out']
+                    outs = model(torch.stack(temp_images).to(device))
+                    
+                    # crf 추가
+                    crf_outs = list()
+                    for img, out in zip(imgs, outs):
+                        crf_prob = dense_crf(img,out)
+                        crf_outs.append(crf_prob)
+
+                    oms = torch.argmax(torch.cat(crf_outs, 0), dim=1).detach().cpu().numpy()
+
+                    break
+                else:
+                    continue
+    
+        fig, ax = plt.subplots(nrows=num_examples, ncols=4, figsize=(19, 4*num_examples), constrained_layout=True)
+        fig.tight_layout()
+        for row_num in range(num_examples):
+            # Original Image
+            ax[row_num][0].imshow(temp_images[row_num].permute([1,2,0]))
+            ax[row_num][0].set_title(f"Orignal Image : {image_infos[row_num]['file_name']}")
+            # Groud Truth
+            ax[row_num][1].imshow(label_to_color_image(masks[row_num].detach().cpu().numpy(), class_colormap))
+            ax[row_num][1].set_title(f"Groud Truth : {image_infos[row_num]['file_name']}")
+            # Pred Mask
+            ax[row_num][2].imshow(label_to_color_image(oms[row_num], class_colormap))
+            ax[row_num][2].set_title(f"Pred Mask : {image_infos[row_num]['file_name']}")
+            ax[row_num][2].legend(handles=legend_elements, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0)
+            # 곂치기
+            original_img = temp_images[row_num].permute([1,2,0])
+            seg_map = label_to_color_image(oms[row_num], class_colormap)
+            ax[row_num][3].imshow(0.7*original_img+0.3*seg_map/255)
+            ax[row_num][3].set_title(f"img : {image_infos[row_num]['file_name']}")
+            ax[row_num][3].legend(handles=legend_elements, bbox_to_anchor=(1.05, 1), loc=2, borderaxespad=0)
+        # plt.show()
+        plt.savefig(os.path.join(save_dir, save_file_name))
+    
+    # test set에 대한 시각화
+    else:
+        print('unknown mode')
+
+
+
+
+import pydensecrf.densecrf as dcrf
+import pydensecrf.utils as utils
+
+class DenseCRF(object):
+    '''
+    https://github.com/kazuto1011/deeplab-pytorch/blob/master/libs/utils/crf.py
+    '''
+    def __init__(self, iter_max=10, pos_w=3, pos_xy_std=3, bi_w=4, bi_xy_std=49, bi_rgb_std=5):
+        self.iter_max = iter_max
+        self.pos_w = pos_w
+        self.pos_xy_std = pos_xy_std
+        self.bi_w = bi_w
+        self.bi_xy_std = bi_xy_std
+        self.bi_rgb_std = bi_rgb_std
+
+    def __call__(self, image, probmap):
+        image = image.squeeze().data.cpu().numpy().astype(np.uint8).transpose(1,2,0)
+        probmap = probmap.squeeze().data.cpu().numpy()
+
+        C, H, W = probmap.shape
+
+        U = utils.unary_from_softmax(probmap)
+        U = np.ascontiguousarray(U)
+
+        image = np.ascontiguousarray(image)
+
+        d = dcrf.DenseCRF2D(W, H, C)
+        d.setUnaryEnergy(U)
+        d.addPairwiseGaussian(sxy=self.pos_xy_std, compat=self.pos_w)
+        d.addPairwiseBilateral(
+            sxy=self.bi_xy_std, srgb=self.bi_rgb_std, rgbim=image, compat=self.bi_w
+        )
+
+        Q = d.inference(self.iter_max)
+        Q = np.array(Q).reshape((C, H, W))
+
+        outs_crf = torch.Tensor(Q).unsqueeze(0)
+        return outs_crf

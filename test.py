@@ -32,7 +32,7 @@ def main(args):
     model = model.to(device)
 
     # test set에 대한 prediction
-    file_names, preds = test(model, test_loader, device)
+    file_names, preds = test(model, test_loader, device, args.crf_mode)
 
     # PredictionString 대입
     submission = pd.DataFrame(data=[], index=[], columns=['image_id', 'PredictionString'])
@@ -52,6 +52,7 @@ if __name__ == '__main__':
     parser.add_argument('--model_path', type=str, default='./saved/hrnet_w48.pt', help='model_path')
     parser.add_argument('--batch_size', type=int, default=16, help='batch size for training (default: 4)')
     parser.add_argument('--model', type=str, default='hrnet_w48', help='model')
+    parser.add_argument('--crf_mode', type=bool, default=True, help='crf')
     args = parser.parse_args()
 
     if not os.path.isdir(args.saved_dir):

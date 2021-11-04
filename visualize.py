@@ -7,7 +7,7 @@ import torch
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 from seg_utils.Dataset import CustomDataLoader, collate_fn
-from seg_utils.utils import plot_examples
+from seg_utils.utils import plot_examples, plot_examples_plus
 
 
 def main(args):
@@ -29,7 +29,7 @@ def main(args):
     # DataLoader
     train_loader = torch.utils.data.DataLoader(dataset=train_dataset, 
                                             batch_size=args.batch_size,
-                                            shuffle=True,
+                                            shuffle=False,
                                             num_workers=4,
                                             collate_fn=collate_fn)
     val_loader = torch.utils.data.DataLoader(dataset=val_dataset, 
@@ -50,9 +50,15 @@ def main(args):
     model.load_state_dict(state_dict)
     model = model.to(device)
 
-    plot_examples(train_loader, model, args.saved_dir, f"{file_name}_train.png", class_colormap, device, mode="train", batch_id=7, num_examples=4)
-    plot_examples(val_loader, model, args.saved_dir, f"{file_name}_val.png", class_colormap, device, mode="val", batch_id=0, num_examples=4)
-    plot_examples(test_loader, model, args.saved_dir, f"{file_name}_test.png", class_colormap, device, mode="test", batch_id=0, num_examples=8)
+    plot_examples(train_loader, model, args.saved_dir, f"{file_name}_train.png", class_colormap, device, mode="train", batch_id=7, num_examples=args.num_examples)
+    plot_examples(val_loader, model, args.saved_dir, f"{file_name}_val.png", class_colormap, device, mode="val", batch_id=0, num_examples=args.num_examples)
+    plot_examples(test_loader, model, args.saved_dir, f"{file_name}_test.png", class_colormap, device, mode="test", batch_id=0, num_examples=args.num_examples)
+    plot_examples(train_loader, model, args.saved_dir, f"{file_name}_train_crf.png", class_colormap, device, mode="train_crf", batch_id=7, num_examples=args.num_examples)
+    plot_examples(val_loader, model, args.saved_dir, f"{file_name}_val_crf.png", class_colormap, device, mode="val_crf", batch_id=0, num_examples=args.num_examples)
+    plot_examples(test_loader, model, args.saved_dir, f"{file_name}_test_crf.png", class_colormap, device, mode="test_crf", batch_id=0, num_examples=args.num_examples)
+    plot_examples_plus(train_loader, model, args.saved_dir, f"{file_name}_train_crf_p.png", class_colormap, device, mode="train_crf", batch_id=0, num_examples=args.num_examples)
+    plot_examples_plus(val_loader, model, args.saved_dir, f"{file_name}_val_crf_p.png", class_colormap, device, mode="val_crf", batch_id=0, num_examples=args.num_examples)
+    plot_examples_plus(test_loader, model, args.saved_dir, f"{file_name}_test_crf_p.png", class_colormap, device, mode="test_crf", batch_id=0, num_examples=args.num_examples)
 
 
 if __name__ == '__main__':
@@ -62,7 +68,8 @@ if __name__ == '__main__':
     parser.add_argument('--saved_dir', type=str, default='./vis', help='vis')
     parser.add_argument('--save_file_name', type=str, default='hrnet_w48.csv', help='save_file_name')
     parser.add_argument('--model_path', type=str, default='./saved/hrnet_w48.pt', help='model_path')
-    parser.add_argument('--batch_size', type=int, default=16, help='batch size for training (default: 4)')
+    parser.add_argument('--batch_size', type=int, default=8, help='batch size for training (default: 4)')
+    parser.add_argument('--num_examples', type=int, default=8, help='num_examples')
     parser.add_argument('--model', type=str, default='hrnet_w48', help='model')
     parser.add_argument('--colomap_class_dict', type=str, default="./class_dict.csv", help='colomap_class_dict')
     args = parser.parse_args()
