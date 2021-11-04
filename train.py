@@ -80,7 +80,7 @@ if __name__ == '__main__':
     parser.add_argument('--num_classes', type=int, default=11, help='num_classes (default: 11)')
     parser.add_argument('--val_every', type=int, default=1, help='val_every (default: 1)')
     parser.add_argument('--learning_rate', type=float, default=1e-3, help='learning rate (default: 1e-3)')
-    parser.add_argument('--model', type=str, default='hrnet_w48', help='model')
+    parser.add_argument('--model', type=str, default='HrnetW48', help='model')
     parser.add_argument('--criterion', type=str, default='CrossEntropyLoss', help='criterion')
     parser.add_argument('--optimizer', type=str, default='Adam', help='optimizer')
     args = parser.parse_args()
