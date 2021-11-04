@@ -3,7 +3,7 @@ DATASET:
   ROOT: '/opt/ml/segmentation/input/data'
   TEST_SET: '/opt/ml/segmentation/input/data/test.json'  
   VALIDATION_SET: '/opt/ml/segmentation/input/data/val.json'  
-  TRAIN_SET: '/opt/ml/segmentation/input/data/train.json'  
+  TRAIN_SET: '/opt/ml/segmentation/input/data/train_all.json'  
   NUM_CLASSES: 11
 MODEL:
   NAME: seg_hrnet_ocr
