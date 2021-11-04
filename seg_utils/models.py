@@ -5,7 +5,7 @@ from torch.nn import functional as F
 import segmentation_models_pytorch as smp
 # Hrnet OCR 
 import yaml 
-from hrnet_ocr.seg_hrnet_ocr import get_seg_model
+from seg_utils.hrnet_ocr.seg_hrnet_ocr import get_seg_model
 
 # ================================== fcn_resnet50 ====================================
 class FcnResnet50(nn.Module):
@@ -100,7 +100,7 @@ class HrnetOcr(nn.Module):
     '''
     def __init__(self):
         super().__init__()        
-        config_path='./hrnet_ocr/hrnet_seg.yaml'
+        config_path='./seg_utils/hrnet_ocr/hrnet_seg.yaml'
         with open(config_path) as f:
             cfg = yaml.load(f)
         self.encoder = get_seg_model(cfg)

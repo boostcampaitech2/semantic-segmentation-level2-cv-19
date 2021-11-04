@@ -8,5 +8,5 @@ from __future__ import absolute_import
 from __future__ import division
 from __future__ import print_function
 
-import models.seg_hrnet
-import models.seg_hrnet_ocr
+import seg_utils.hrnet_ocr.seg_hrnet
+import seg_utils.hrnet_ocr.seg_hrnet_ocr
