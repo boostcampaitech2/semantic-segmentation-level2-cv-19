@@ -4,7 +4,7 @@ import torch
 from torch.optim.lr_scheduler import StepLR
 import albumentations as A
 from tqdm import tqdm
-from seg_utils.utils import label_accuracy_score, add_hist, DenseCRF
+from seg_utils.utils import label_accuracy_score, add_hist, DenseCRF, batch_crf
 
 
 def train(num_epochs, model, data_loader, val_loader, criterion, optimizer, saved_dir, file_name, val_every, device):
@@ -110,13 +110,7 @@ def save_model(model, saved_dir, file_name='model.pt'):
     torch.save(model, output_path)
 
 
-def batch_crf(imgs, outs, dense_crf):
-    crf_outs = list()
-    for img, out in zip(imgs, outs):
-        crf_prob = dense_crf(img,out)
-        crf_outs.append(crf_prob)
-    crf_outs = torch.cat(crf_outs, 0)
-    return crf_outs
+
 
 
 def test(model, test_loader, device, crf_mode=True):

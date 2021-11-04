@@ -488,3 +488,12 @@ class DenseCRF(object):
 
         outs_crf = torch.Tensor(Q).unsqueeze(0)
         return outs_crf
+
+
+def batch_crf(imgs, outs, dense_crf):
+    crf_outs = list()
+    for img, out in zip(imgs, outs):
+        crf_prob = dense_crf(img,out)
+        crf_outs.append(crf_prob)
+    crf_outs = torch.cat(crf_outs, 0)
+    return crf_outs
