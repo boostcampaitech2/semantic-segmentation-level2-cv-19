@@ -1,5 +1,4 @@
-import os
-import cv2
+import os, random, cv2
 import numpy as np
 from torch.utils.data import Dataset
 from pycocotools.coco import COCO
@@ -79,6 +78,34 @@ class CustomDataLoader(Dataset):
     def __len__(self) -> int:
         # 전체 dataset의 size를 return
         return len(self.coco.getImgIds())
+
+    def augmix_search(self, images, masks):
+        # image 3, 512, 512 ,mask: 512, 512 (둘 다 numpy)
+        tfms = A.Compose([
+                    # A.Resize(384, 384, p=1.0)
+                    A.GridDistortion(p=0.3, distort_limit=[-0.01, 0.01]),
+                    A.Rotate(limit=60, p=1.0),
+                    A.VerticalFlip(p=0.5),
+                    A.HorizontalFlip(p=0.5)
+              ])
+        
+        num = [3, 4, 5, 9, 10]
+
+        label = random.choice(num)  # ex) 4
+        idx = np.random.randint(len(self.augmix[label]))
+        augmix_img = self.augmix[label][idx]
+        augmix_mask = np.zeros((512, 512))
+        # augmix img가 있는 만큼 label로 mask를 채워줌
+        augmix_mask[augmix_img[:, :, 0] != 0] = label
+        ################################################## 새로 추가한 transform을 적용해보자 
+        transformed=tfms(image=augmix_img, mask=augmix_mask)
+        augmix_img = transformed['image']
+        augmix_mask = transformed['mask']
+        ####################################################
+        images[augmix_img != 0] = augmix_img[augmix_img != 0]
+        masks[augmix_mask != 0] = augmix_mask[augmix_mask != 0]
+
+        return images, masks
 
 
 class CustomAugmentation:
