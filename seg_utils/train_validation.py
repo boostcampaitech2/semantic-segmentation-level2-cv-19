@@ -36,23 +36,23 @@ def train(num_epochs, model, data_loader, val_loader, criterion, optimizer, save
             outputs = model(images)
             
             # loss 계산 (cross entropy loss)
-            if isinstance(preds, list):
-                for i in range(len(preds)):
-                    pred = preds[i]
+            if isinstance(outputs, list):
+                for i in range(len(outputs)):
+                    pred = outputs[i]
                     ph, pw = pred.size(2), pred.size(3)
                     h, w = masks.size(1), masks.size(2)
                     if ph != h or pw != w:
                         pred = F.interpolate(input=pred, size=(
                             h, w), mode='bilinear', align_corners=True)
-                    preds[i] = pred
+                    outputs[i] = pred
             
                 loss = 0               
-                for i in range(len(preds)):
-                    loss += criterion(preds[i], masks)
-                preds = preds[0]
+                for i in range(len(outputs)):
+                    loss += criterion(outputs[i], masks)
+                outputs = outputs[0]
 
             else:
-                loss = criterion(preds, masks)
+                loss = criterion(outputs, masks)
 
             optimizer.zero_grad()
             loss.backward()
@@ -104,15 +104,15 @@ def validation(epoch, model, data_loader, criterion, device):
             
             # outputs = model(images)['out']
             outputs = model(images)
-            if isinstance(preds, list):
-                _, preds = preds
-                ph, pw = preds.size(2), preds.size(3)
+            if isinstance(outputs, list):
+                _, outputs = outputs
+                ph, pw = outputs.size(2), outputs.size(3)
                 h, w = masks.size(1), masks.size(2)
                 if ph != h or pw != w:
-                    preds = F.interpolate(input=preds, size=(
+                    outputs = F.interpolate(input=outputs, size=(
                         h, w), mode='bilinear', align_corners=True)
 
-            loss = criterion(preds, masks)
+            loss = criterion(outputs, masks)
             total_loss += loss
             cnt += 1
             

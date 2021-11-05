@@ -15,44 +15,35 @@ import multiprocessing as mp
 import numpy as np
 import pandas as pd
 from seg_utils.utils import seed_everything, dense_crf_wrapper, make_cat_df
+from seg_utils.Dataset import CustomAugmentation, CustomDataLoader
 
 
 def main(args):
-    dist.init_process_group('gloo', init_method='file:///tmp/somefile', rank=0, world_size=1)        
+    # dist.init_process_group('gloo', init_method='file:///tmp/somefile', rank=0, world_size=1)        
     seed_everything(args.seed)
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    if not os.path.isdir(args.saved_dir):                                                           
+        os.mkdir(args.saved_dir)
+    save_file_name = args.save_file
+    batch_size = args.batch_size
+    test_annot = os.path.join(args.dataset_path, 'test.json')    
 
     with open(args.cfg) as f:
         config = easydict.EasyDict(yaml.load(f))    
 
-    dataset_path  = '/opt/ml/segmentation/input/data'
 
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    saved_dir = './submission'
-    if not os.path.isdir(saved_dir):                                                           
-        os.mkdir(saved_dir)
-    save_file_name = args.save_file
-    batch_size = 16 
 
-    test_annot = os.path.join(dataset_path, 'test.json')    
-    test_cat = make_cat_df(test_annot, debug=True)    
 
     # test data loder
-    test_transform = A.Compose([
-        A.Normalize(),
-        ToTensorV2()
-    ])
-
-    test_dataset = eval('datasets.'+config.DATASET.DATASET)(config.DATASET.ROOT, config.DATASET.TEST_SET, test_cat, mode='test', transform=test_transform)        
-     
+    test_transform = CustomAugmentation('val')
+    test_dataset = CustomDataLoader(data_dir=args.dataset_path, mode='val', transform=test_transform)        
     test_loader = torch.utils.data.DataLoader(dataset=test_dataset,
-                         batch_size=batch_size,
-                         shuffle=False,
-                         num_workers=4
-    )    
+                                        batch_size=batch_size,
+                                        shuffle=False,
+                                        num_workers=4
+                                        )    
     model_names = args.model_names.split(',')
     pths = args.pth_files.split(',')
-    #print(model_names)
-    print(pths)
     
     weights = {
         2: [0.5, 0.5],
@@ -77,7 +68,8 @@ def main(args):
             )                       
             checkpoint = torch.load(pth, map_location=device)
             state_dict = checkpoint.state_dict()
-            model.load_state_dict(state_dict)            
+            model.load_state_dict(state_dict)    
+                    
         elif model_name == 'j':
             model = smp.UnetPlusPlus(
             encoder_name="timm-efficientnet-b8",
@@ -92,13 +84,10 @@ def main(args):
             print(f'Unsupported Mode:{model_name}')
             return
 
-        tta_tfms = tta.Compose(
-                            [
-                                tta.VerticalFlip(),                                
+        tta_tfms = tta.Compose([tta.VerticalFlip(),                                
                                 tta.HorizontalFlip(),
                                 tta.Rotate90([0, 90]),
-                            ]
-                        )
+                                ])
 
         model = tta.SegmentationTTAWrapper(model, tta_tfms, merge_mode='mean')
         
@@ -180,10 +169,14 @@ def main(args):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--seed', type=int, default=42, help='random seed (default: 42)')        
+    parser.add_argument('--batch_size', type=int, default=16)        
     parser.add_argument('--cfg', help='experiment configure file name', required=True, type=str )
-    parser.add_argument('--model_names', type=str, default='seg_hrnet_ocr,seg_hrnet_ocr', help='model names')                           
+    parser.add_argument('--model_names', type=str, default='seg_hrnet_ocr,seg_hrnet_ocr', help='model names')    
+
     parser.add_argument('--pth_files', type=str, default='./saved/best_mIoU.pth,./saved/best_loss.pth', help='trained model files')                           
     parser.add_argument('--save_file',  type=str, default='./submission/best_mIOU.csv', help='submission file')                           
+    parser.add_argument('--dataset_path', type=str, default='/opt/ml/segmentation/input/data', help='trained model files')                           
+    parser.add_argument('--saved_dir', type=str, default='./submission', help='trained model files')                           
     parser.add_argument('--crf_mode',  type=bool, default=False, help='crf mode')                           
     args = parser.parse_args()        
     main(args)

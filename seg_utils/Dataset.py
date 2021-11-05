@@ -101,8 +101,8 @@ class CustomAugmentation:
                                     ToTensorV2()
                                     ])
 
-    def __call__(self, image):
-        return self.transform(image)
+    def __call__(self, image, mask):
+        return self.transform(image=image, mask=mask)
 
 
 if __name__=="__main__":
