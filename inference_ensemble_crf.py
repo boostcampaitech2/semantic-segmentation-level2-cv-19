@@ -31,9 +31,6 @@ def main(args):
     with open(args.cfg) as f:
         config = easydict.EasyDict(yaml.load(f))    
 
-
-
-
     # test data loder
     test_transform = CustomAugmentation('val')
     test_dataset = CustomDataLoader(data_dir=args.dataset_path, mode='val', transform=test_transform)        
@@ -172,7 +169,6 @@ if __name__ == '__main__':
     parser.add_argument('--batch_size', type=int, default=16)        
     parser.add_argument('--cfg', help='experiment configure file name', required=True, type=str )
     parser.add_argument('--model_names', type=str, default='seg_hrnet_ocr,seg_hrnet_ocr', help='model names')    
-
     parser.add_argument('--pth_files', type=str, default='./saved/best_mIoU.pth,./saved/best_loss.pth', help='trained model files')                           
     parser.add_argument('--save_file',  type=str, default='./submission/best_mIOU.csv', help='submission file')                           
     parser.add_argument('--dataset_path', type=str, default='/opt/ml/segmentation/input/data', help='trained model files')                           
