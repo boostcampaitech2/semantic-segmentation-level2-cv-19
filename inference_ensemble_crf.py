@@ -15,8 +15,8 @@ import multiprocessing as mp
 import numpy as np
 import pandas as pd
 from seg_utils.utils import seed_everything, dense_crf_wrapper, make_cat_df
-from seg_utils.Dataset import CustomAugmentation, CustomDataLoader
-
+from seg_utils.Dataset import CustomAugmentation, CustomDataLoader, collate_fn
+from seg_utils.models import HrnetOcr
 
 def main(args):
     # dist.init_process_group('gloo', init_method='file:///tmp/somefile', rank=0, world_size=1)        
@@ -26,19 +26,20 @@ def main(args):
         os.mkdir(args.saved_dir)
     save_file_name = args.save_file
     batch_size = args.batch_size
-    test_annot = os.path.join(args.dataset_path, 'test.json')    
 
     with open(args.cfg) as f:
         config = easydict.EasyDict(yaml.load(f))    
 
     # test data loder
     test_transform = CustomAugmentation('val')
-    test_dataset = CustomDataLoader(data_dir=args.dataset_path, mode='val', transform=test_transform)        
+    test_dataset = CustomDataLoader(data_dir=args.dataset_path, mode='test', transform=test_transform)        
     test_loader = torch.utils.data.DataLoader(dataset=test_dataset,
                                         batch_size=batch_size,
+                                        num_workers=4,
                                         shuffle=False,
-                                        num_workers=4
+                                        collate_fn=collate_fn
                                         )    
+
     model_names = args.model_names.split(',')
     pths = args.pth_files.split(',')
     
@@ -53,8 +54,10 @@ def main(args):
     for model_name, pth in zip(model_names, pths):
         print(f'model:{model_name} pth:{pth}')
         if model_name == config.MODEL.NAME:  #seg_hrn_ocr case
-            model = eval('models.'+config.MODEL.NAME +'.get_seg_model')(config, mode='test')
-            model.load_state_dict(torch.load(pth))        
+            model = HrnetOcr()
+            checkpoint = torch.load(pth, map_location=device)
+            state_dict = checkpoint.state_dict()
+            model.load_state_dict(state_dict)        
 
         elif model_name == 'h':
             model = smp.UnetPlusPlus(
@@ -103,9 +106,8 @@ def main(args):
         
     resize_transform = A.Compose([A.Resize(size, size)])
     with torch.no_grad():
-        for step, sample in tqdm(enumerate(test_loader), total=len(test_loader)):
-            imgs = sample['image']
-            file_names = sample['info']
+        for step, (sample, file_names) in tqdm(enumerate(test_loader), total=len(test_loader)):
+            imgs = torch.stack(sample)
 
             final_probs = 0            
             for idx, (model, weight) in enumerate(zip(test_models, weights[len(test_models)])):
@@ -126,9 +128,9 @@ def main(args):
                     if images.shape[1] != tar_size or images.shape[2] != tar_size:
                         images = np.stack([resize(image=im)['image'] for im in images], axis=0)
                     probs = np.array(pool.map(dense_crf_wrapper, zip(images, probs)))
+                    pool.close()
 
                 final_probs += weight * probs
-                pool.close()
             oms = np.argmax(final_probs.squeeze(), axis=1)
 
             temp_mask = []
@@ -143,13 +145,13 @@ def main(args):
             oms = oms.reshape([oms.shape[0], size * size]).astype(int)
             preds_array = np.vstack((preds_array, oms))
 
-            file_name_list.append([file_name for file_name in file_names])
-            #break
+            file_name_list.append([file_name['file_name'] for file_name in file_names])
+
     print("End prediction.")
-            
+    
     print("Saving...")
     file_names = [y for x in file_name_list for y in x]
-    submission = pd.read_csv('./submission/sample_submission.csv', index_col=None)
+    submission = pd.DataFrame(data=[], index=[], columns=['image_id', 'PredictionString'])
     for file_name, string in zip(file_names, preds_array):
         submission = submission.append(
             {"image_id": file_name, "PredictionString": ' '.join(str(e) for e in string.tolist())},
@@ -167,11 +169,11 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--seed', type=int, default=42, help='random seed (default: 42)')        
     parser.add_argument('--batch_size', type=int, default=16)        
-    parser.add_argument('--cfg', help='experiment configure file name', required=True, type=str )
+    parser.add_argument('--cfg', type=str, default='seg_utils/hrnet_ocr/hrnet_seg.yaml')
     parser.add_argument('--model_names', type=str, default='seg_hrnet_ocr,seg_hrnet_ocr', help='model names')    
-    parser.add_argument('--pth_files', type=str, default='./saved/best_mIoU.pth,./saved/best_loss.pth', help='trained model files')                           
-    parser.add_argument('--save_file',  type=str, default='./submission/best_mIOU.csv', help='submission file')                           
-    parser.add_argument('--dataset_path', type=str, default='/opt/ml/segmentation/input/data', help='trained model files')                           
+    parser.add_argument('--pth_files', type=str, default='./saved/hrnet_w48.pt,./saved/hrnet_w48.pt', help='trained model files')                           
+    parser.add_argument('--save_file',  type=str, default='submission/temp1.csv', help='submission file')                           
+    parser.add_argument('--dataset_path', type=str, default='../input/data', help='trained model files')                           
     parser.add_argument('--saved_dir', type=str, default='./submission', help='trained model files')                           
     parser.add_argument('--crf_mode',  type=bool, default=False, help='crf mode')                           
     args = parser.parse_args()        
