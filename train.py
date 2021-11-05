@@ -47,9 +47,6 @@ def main(args):
     optimizer_module = getattr(import_module("torch.optim"), args.optimizer)
     optimizer = optimizer_module(params = model.parameters(), lr = args.learning_rate, weight_decay=1e-6)
 
-    # scheduler
-    scheduler = CosineAnnealingLR(optimizer, T_max=10)
-
     # Train
     train(args.num_epochs, 
             model, 
