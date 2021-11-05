@@ -1,4 +1,4 @@
-import os
+import os, random, json
 import numpy as np
 import webcolors
 import pandas as pd
@@ -7,6 +7,15 @@ import matplotlib.pyplot as plt
 import torch
 import torch.nn.functional as F
 
+
+def seed_everything(seed):
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed) 
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    np.random.seed(seed)
+    random.seed(seed)
 
 
 def _fast_hist(label_true, label_pred, n_class):
@@ -497,3 +506,81 @@ def batch_crf(imgs, outs, dense_crf):
         crf_outs.append(crf_prob)
     crf_outs = torch.cat(crf_outs, 0)
     return crf_outs
+
+
+def dense_crf_wrapper(args):
+    return dense_crf(args[0], args[1])
+
+def dense_crf(img, output_probs):
+    '''
+    https://www.programcreek.com/python/example/106424/pydensecrf.densecrf.DenseCRF2D
+    '''
+    MAX_ITER = 10
+    POS_W = 3
+    POS_XY_STD = 3
+    Bi_W = 4
+    Bi_XY_STD = 49
+    Bi_RGB_STD = 5
+
+    c = output_probs.shape[0]
+    h = output_probs.shape[1]
+    w = output_probs.shape[2]
+
+    U = utils.unary_from_softmax(output_probs)
+    U = np.ascontiguousarray(U)
+
+    img = np.ascontiguousarray(img)
+
+    d = dcrf.DenseCRF2D(w, h, c)
+    d.setUnaryEnergy(U)
+    d.addPairwiseGaussian(sxy=POS_XY_STD, compat=POS_W)
+    d.addPairwiseBilateral(sxy=Bi_XY_STD, srgb=Bi_RGB_STD, rgbim=img, compat=Bi_W)
+
+    Q = d.inference(MAX_ITER)
+    Q = np.array(Q).reshape((c, h, w))
+    return Q
+           
+def make_cat_df(train_annot_path, debug=False):
+    with open(train_annot_path, 'r') as f:
+        dataset = json.loads(f.read())
+
+    categories = dataset['categories']
+    anns = dataset['annotations']
+    imgs = dataset['images']
+    nr_cats = len(categories)
+    nr_annotations = len(anns)
+    nr_images = len(imgs)
+
+    cat_names = []
+    super_cat_names = []
+    super_cat_ids = {}
+    super_cat_last_name = ''
+    nr_super_cats = 0
+    for cat_it in categories:
+        cat_names.append(cat_it['name'])
+        super_cat_name = cat_it['supercategory']
+        if super_cat_name != super_cat_last_name:
+            super_cat_names.append(super_cat_name)
+            super_cat_ids[super_cat_name] = nr_super_cats
+            super_cat_last_name = super_cat_name
+            nr_super_cats += 1
+
+    print('Number of super categories:', nr_super_cats)
+    print('Number of categories:', nr_cats)
+    print('Number of annotations:', nr_annotations)
+    print('Number of images:', nr_images)
+    cat_histogram = np.zeros(nr_cats,dtype=int)
+    for ann in anns:
+        cat_histogram[ann['category_id']-1] += 1
+
+    # Convert to DataFrame
+    df = pd.DataFrame({'Categories': cat_names, 'Number of annotations': cat_histogram})
+    df = df.sort_values('Number of annotations', 0, False)
+
+    # category labeling 
+    sorted_temp_df = df.sort_index()
+
+    # background = 0 에 해당되는 label 추가 후 기존들을 모두 label + 1 로 설정
+    sorted_df = pd.DataFrame(["Backgroud"], columns = ["Categories"])
+    sorted_df = sorted_df.append(sorted_temp_df, ignore_index=True)
+    return sorted_df    

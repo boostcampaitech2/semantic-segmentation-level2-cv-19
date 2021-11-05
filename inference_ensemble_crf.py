@@ -1,4 +1,4 @@
-import os, argparse, random, json
+import os, argparse
 import numpy as np
 from tqdm import tqdm
 import easydict, yaml
@@ -12,135 +12,9 @@ from albumentations.pytorch import ToTensorV2
 import segmentation_models_pytorch as smp
 
 import multiprocessing as mp
-import pydensecrf.densecrf as dcrf
-import pydensecrf.utils as utils
 import numpy as np
 import pandas as pd
-
-def dense_crf_wrapper(args):
-    return dense_crf(args[0], args[1])
-
-def dense_crf(img, output_probs):
-    '''
-    https://www.programcreek.com/python/example/106424/pydensecrf.densecrf.DenseCRF2D
-    '''
-    MAX_ITER = 10
-    POS_W = 3
-    POS_XY_STD = 3
-    Bi_W = 4
-    Bi_XY_STD = 49
-    Bi_RGB_STD = 5
-
-    c = output_probs.shape[0]
-    h = output_probs.shape[1]
-    w = output_probs.shape[2]
-
-    U = utils.unary_from_softmax(output_probs)
-    U = np.ascontiguousarray(U)
-
-    img = np.ascontiguousarray(img)
-
-    d = dcrf.DenseCRF2D(w, h, c)
-    d.setUnaryEnergy(U)
-    d.addPairwiseGaussian(sxy=POS_XY_STD, compat=POS_W)
-    d.addPairwiseBilateral(sxy=Bi_XY_STD, srgb=Bi_RGB_STD, rgbim=img, compat=Bi_W)
-
-    Q = d.inference(MAX_ITER)
-    Q = np.array(Q).reshape((c, h, w))
-    return Q
-            
-            
-def seed_everything(seed):
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)  # if use multi-GPU
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-    np.random.seed(seed)
-    random.seed(seed)
-
-def get_classname(classID, cats):
-    for i in range(len(cats)):
-        if cats[i]['id'] == classID:
-            return cats[i]['name']
-    return "None"
-
-def make_cat_df(train_annot_path, debug=False):
-    with open(train_annot_path, 'r') as f:
-        dataset = json.loads(f.read())
-
-    categories = dataset['categories']
-    anns = dataset['annotations']
-    imgs = dataset['images']
-    nr_cats = len(categories)
-    nr_annotations = len(anns)
-    nr_images = len(imgs)
-
-    cat_names = []
-    super_cat_names = []
-    super_cat_ids = {}
-    super_cat_last_name = ''
-    nr_super_cats = 0
-    for cat_it in categories:
-        cat_names.append(cat_it['name'])
-        super_cat_name = cat_it['supercategory']
-        if super_cat_name != super_cat_last_name:
-            super_cat_names.append(super_cat_name)
-            super_cat_ids[super_cat_name] = nr_super_cats
-            super_cat_last_name = super_cat_name
-            nr_super_cats += 1
-
-    print('Number of super categories:', nr_super_cats)
-    print('Number of categories:', nr_cats)
-    print('Number of annotations:', nr_annotations)
-    print('Number of images:', nr_images)
-    cat_histogram = np.zeros(nr_cats,dtype=int)
-    for ann in anns:
-        cat_histogram[ann['category_id']-1] += 1
-
-    # Convert to DataFrame
-    df = pd.DataFrame({'Categories': cat_names, 'Number of annotations': cat_histogram})
-    df = df.sort_values('Number of annotations', 0, False)
-
-    # category labeling 
-    sorted_temp_df = df.sort_index()
-
-    # background = 0 에 해당되는 label 추가 후 기존들을 모두 label + 1 로 설정
-    sorted_df = pd.DataFrame(["Backgroud"], columns = ["Categories"])
-    sorted_df = sorted_df.append(sorted_temp_df, ignore_index=True)
-    return sorted_df    
-    
-
-def test(model, test_loader, device):
-    size = 256
-    transform = A.Compose([A.Resize(size, size)])
-    print('Start prediction.')
-    model.eval()
-    
-    file_name_list = []
-    preds_array = np.empty((0, size*size), dtype=np.long)
-    
-    with torch.no_grad():
-        for step, (imgs, image_infos) in enumerate(tqdm(test_loader)):
-            outs = model(torch.stack(imgs).to(device))
-            oms = torch.argmax(outs.squeeze(), dim=1).detach().cpu().numpy()
-            
-            temp_mask = []
-            for img, mask in zip(np.stack(imgs), oms):
-                transformed = transform(image=img, mask=mask)
-                mask = transformed['mask']
-                temp_mask.append(mask)
-                
-            oms = np.array(temp_mask)
-            
-            oms = oms.reshape([oms.shape[0], size*size]).astype(int)
-            preds_array = np.vstack((preds_array, oms))
-            
-            file_name_list.append([i['file_name'] for i in image_infos])
-    print("End prediction.")
-    file_names = [y for x in file_name_list for y in x]
-    
-    return file_names, preds_array    
+from seg_utils.utils import seed_everything, dense_crf_wrapper, make_cat_df
 
 
 def main(args):
@@ -252,18 +126,22 @@ def main(args):
                 imgs = imgs.to(device)
                 preds = model(imgs)
 
+                if isinstance(preds, list):
+                    preds = preds[0]
                 ph, pw = preds.size(2), preds.size(3)
                 if ph != 512 or pw != 512:
                     preds = F.interpolate(input=preds, size=(
                         tar_size, tar_size), mode='bilinear', align_corners=True)
                 probs = F.softmax(preds, dim=1).detach().cpu().numpy()
 
-                pool = mp.Pool(mp.cpu_count())
-                images = imgs.detach().cpu().numpy().astype(np.uint8).transpose(0, 2, 3, 1)
-                if images.shape[1] != tar_size or images.shape[2] != tar_size:
-                    images = np.stack([resize(image=im)['image'] for im in images], axis=0)
+                if args.crf_mode==True:
+                    pool = mp.Pool(mp.cpu_count())
+                    images = imgs.detach().cpu().numpy().astype(np.uint8).transpose(0, 2, 3, 1)
+                    if images.shape[1] != tar_size or images.shape[2] != tar_size:
+                        images = np.stack([resize(image=im)['image'] for im in images], axis=0)
+                    probs = np.array(pool.map(dense_crf_wrapper, zip(images, probs)))
 
-                final_probs += np.array(pool.map(dense_crf_wrapper, zip(images, probs))) / 5
+                final_probs += weight * probs
                 pool.close()
             oms = np.argmax(final_probs.squeeze(), axis=1)
 
@@ -306,5 +184,6 @@ if __name__ == '__main__':
     parser.add_argument('--model_names', type=str, default='seg_hrnet_ocr,seg_hrnet_ocr', help='model names')                           
     parser.add_argument('--pth_files', type=str, default='./saved/best_mIoU.pth,./saved/best_loss.pth', help='trained model files')                           
     parser.add_argument('--save_file',  type=str, default='./submission/best_mIOU.csv', help='submission file')                           
+    parser.add_argument('--crf_mode',  type=bool, default=False, help='crf mode')                           
     args = parser.parse_args()        
     main(args)
