@@ -1,4 +1,5 @@
-# High-resolution networks and Segmentation Transformer for Semantic Segmentation
+# Semantic Segmentation Github
+ 
 ## Baseline Code: HRN OCR
 https://github.com/HRNet/HRNet-Semantic-Segmentation
 
@@ -27,6 +28,6 @@ https://github.com/HRNet/HRNet-Semantic-Segmentation
 - (3) hrn ocr seed:44 epoch:100 -> public LB mIoU: 0.676
 - (2), (3), (1)을 0.5, 0.3, 0.2의 weight로 Soft Voting Ensemble -> public LB mIoU: 0.713
 - (2,) (3,),(1),  unet v2 / efficient net b7, unet v2 / efficient net b8을 Soft Voting Ensemble -> public LB mIoU: 0.697
-- 가장 public LB score가 높은 ensemble 조합으로 최종 제출
+- 가장 public LB score가 높은 3개 model의 ensemble 조합으로 최종 제출
 
  
