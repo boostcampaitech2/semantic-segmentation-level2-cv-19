@@ -1,5 +1,6 @@
 # Semantic Segmentation Github
- 
+
+
 ## Baseline Code: HRN OCR
 - HRN(High Resolution Netork) 및 OCR(Objecct Conceptual Representation) official code를 기반으로 하였습니다.
 - https://github.com/HRNet/HRNet-Semantic-Segmentation
@@ -13,9 +14,10 @@
 
 ## train하는 방법
 - HRNet-Semantic-Segmentation-HRNet-OCR 디렉토리로 이동
+- https://github.com/HRNet/HRNet-Image-Classification/releases/download/PretrainedWeights/HRNet_W48_C_ssld_pretrained.pth 파일을 다운로드 합니다.
+- 다운로드한 pth파일을 pretrained_models 디렉토리에 넣습니다. experiments/bc_trash/hrnet_seg_all.yaml 에서 들어가야 하는 위치를 확인 가능합니다.  
 - python tools/train.py --cfg experiments/bc_trash/hrnet_seg_all.yaml   
 - cfg argument로는 hrn ocr model을 위한 yaml 파일이 필요합니다. 
-
 
 ## inference 및 ensemble 하는 방법
 - HRNet-Semantic-Segmentation-HRNet-OCR 디렉토리로 이동
