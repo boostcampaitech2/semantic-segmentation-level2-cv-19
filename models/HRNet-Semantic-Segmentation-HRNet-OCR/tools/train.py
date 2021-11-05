@@ -98,9 +98,6 @@ def train_valid(epoch, model, trn_dl, val_dl, criterion, optimizer, scheduler, d
     val_losses = []
     hist = np.zeros((11, 11))
 
-    example_images = []
-
-
     with torch.no_grad():
         with tqdm(val_dl, total=len(val_dl), unit='batch') as val_bar:
             for batch, sample in enumerate(val_bar):
