@@ -3,6 +3,9 @@ import cv2
 import numpy as np
 from torch.utils.data import Dataset
 from pycocotools.coco import COCO
+import albumentations as A
+from albumentations.pytorch import ToTensorV2
+
 
 def get_classname(classID, cats):
     for i in range(len(cats)):
@@ -76,6 +79,31 @@ class CustomDataLoader(Dataset):
     def __len__(self) -> int:
         # 전체 dataset의 size를 return
         return len(self.coco.getImgIds())
+
+
+class CustomAugmentation:
+    def __init__(self, mode = 'train'):
+        if mode == 'train':
+            self.transform = A.Compose([
+                                    A.HorizontalFlip(p=0.5),
+                                    A.VerticalFlip(p=0.5),
+                                    A.RandomRotate90(p=0.5),
+                                    A.Normalize(),
+                                    ToTensorV2()
+                                    ])
+        elif mode == 'val':
+            self.transform = A.Compose([
+                                    A.Normalize(),        
+                                    ToTensorV2()
+                                    ])
+        else:
+            self.transform = A.Compose([
+                                    ToTensorV2()
+                                    ])
+
+    def __call__(self, image):
+        return self.transform(image)
+
 
 if __name__=="__main__":
     dataset_path  = '../input/data'

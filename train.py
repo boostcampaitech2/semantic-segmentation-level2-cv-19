@@ -7,7 +7,7 @@ import torch
 import torch.nn as nn
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
-from seg_utils.Dataset import CustomDataLoader, collate_fn
+from seg_utils.Dataset import CustomDataLoader, collate_fn, CustomAugmentation
 from seg_utils.train_validation import train
 from seg_utils.utils import seed_everything
 
@@ -17,8 +17,8 @@ def main(args):
     device = "cuda" if torch.cuda.is_available() else "cpu"
 
     # transform
-    train_transform = A.Compose([ToTensorV2()])
-    val_transform = A.Compose([ToTensorV2()])
+    train_transform = CustomAugmentation('train')
+    val_transform = CustomAugmentation('val')
 
     # dataset
     train_dataset = CustomDataLoader(data_dir=args.dataset_path, mode='train', transform=train_transform)
@@ -44,8 +44,11 @@ def main(args):
     criterion_module = getattr(import_module("seg_utils.loss"), args.criterion)
     criterion = criterion_module()
     # Optimizer 정의
-    optimizer_module = getattr(import_module("torch.optim"), 'Adam')
+    optimizer_module = getattr(import_module("torch.optim"), args.optimizer)
     optimizer = optimizer_module(params = model.parameters(), lr = args.learning_rate, weight_decay=1e-6)
+
+    # scheduler
+    scheduler = CosineAnnealingLR(optimizer, T_max=10)
 
     # Train
     train(args.num_epochs, 
@@ -72,8 +75,8 @@ if __name__ == '__main__':
     parser.add_argument('--val_every', type=int, default=1, help='val_every (default: 1)')
     parser.add_argument('--learning_rate', type=float, default=1e-3, help='learning rate (default: 1e-3)')
     parser.add_argument('--model', type=str, default='HrnetW48', help='model')
-    parser.add_argument('--criterion', type=str, default='CrossEntropyLoss', help='criterion')
-    parser.add_argument('--optimizer', type=str, default='Adam', help='optimizer')
+    parser.add_argument('--criterion', type=str, default='DiceWCELoss', help='criterion')
+    parser.add_argument('--optimizer', type=str, default='AdamW', help='optimizer')
     args = parser.parse_args()
 
     # hyper parameter

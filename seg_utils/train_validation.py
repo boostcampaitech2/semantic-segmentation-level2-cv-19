@@ -1,7 +1,8 @@
 import os
 import numpy as np
 import torch
-from torch.optim.lr_scheduler import StepLR
+from torch.optim.lr_scheduler import StepLR, CosineAnnealingLR
+import torch.nn.functional as F
 import albumentations as A
 from tqdm import tqdm
 from seg_utils.utils import label_accuracy_score, add_hist, DenseCRF, batch_crf
@@ -13,7 +14,8 @@ def train(num_epochs, model, data_loader, val_loader, criterion, optimizer, save
     best_loss = 9999999
     
     # scheduler
-    scheduler = StepLR(optimizer, 20, gamma=0.1)
+    # scheduler = StepLR(optimizer, 20, gamma=0.1)
+    scheduler = CosineAnnealingLR(optimizer, T_max=10)
     
     for epoch in range(num_epochs):
         model.train()
@@ -34,10 +36,30 @@ def train(num_epochs, model, data_loader, val_loader, criterion, optimizer, save
             outputs = model(images)
             
             # loss 계산 (cross entropy loss)
-            loss = criterion(outputs, masks)
+            if isinstance(preds, list):
+                for i in range(len(preds)):
+                    pred = preds[i]
+                    ph, pw = pred.size(2), pred.size(3)
+                    h, w = masks.size(1), masks.size(2)
+                    if ph != h or pw != w:
+                        pred = F.interpolate(input=pred, size=(
+                            h, w), mode='bilinear', align_corners=True)
+                    preds[i] = pred
+            
+                loss = 0               
+                for i in range(len(preds)):
+                    loss += criterion(preds[i], masks)
+                preds = preds[0]
+
+            else:
+                loss = criterion(preds, masks)
+
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
+
+            if scheduler is not None:
+                scheduler.step()
             
             outputs = torch.argmax(outputs, dim=1).detach().cpu().numpy()
             masks = masks.detach().cpu().numpy()
@@ -58,8 +80,6 @@ def train(num_epochs, model, data_loader, val_loader, criterion, optimizer, save
                 print(f"Save model in {saved_dir}")
                 best_loss = avrg_loss
                 save_model(model, saved_dir, file_name=file_name)
-
-        scheduler.step()
 
 
 def validation(epoch, model, data_loader, criterion, device):
@@ -84,7 +104,15 @@ def validation(epoch, model, data_loader, criterion, device):
             
             # outputs = model(images)['out']
             outputs = model(images)
-            loss = criterion(outputs, masks)
+            if isinstance(preds, list):
+                _, preds = preds
+                ph, pw = preds.size(2), preds.size(3)
+                h, w = masks.size(1), masks.size(2)
+                if ph != h or pw != w:
+                    preds = F.interpolate(input=preds, size=(
+                        h, w), mode='bilinear', align_corners=True)
+
+            loss = criterion(preds, masks)
             total_loss += loss
             cnt += 1
             
@@ -108,9 +136,6 @@ def save_model(model, saved_dir, file_name='model.pt'):
     check_point = {'net': model.state_dict()}
     output_path = os.path.join(saved_dir, file_name)
     torch.save(model, output_path)
-
-
-
 
 
 def test(model, test_loader, device, crf_mode=True):
