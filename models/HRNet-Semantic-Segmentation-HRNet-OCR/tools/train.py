@@ -28,19 +28,11 @@ import torch.distributed as dist
 import json
 import pandas as pd
 
-from utils.baseline_utils import label_accuracy_score, add_hist
+from utils.baseline_utils import label_accuracy_score, add_hist, set_seed, get_categories
 
 from core.criterion import DiceWCELoss
 
 
-def set_seed(seed):
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)  # if use multi-GPU
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-    np.random.seed(seed)
-    random.seed(seed)
 
 def save_model(model, save_type='loss'):
     save_path = os.path.join(f'./saved')
@@ -49,59 +41,7 @@ def save_model(model, save_type='loss'):
 
     save_dir = os.path.join(save_path, f'best_{save_type}.pth')
     torch.save(model.state_dict(), save_dir)
-    
-    
-def get_categories(train_anno_path):
-    with open(train_anno_path, 'r') as f:
-        dataset = json.loads(f.read())
-
-    categories = dataset['categories']
-    anns = dataset['annotations']
-    imgs = dataset['images']
-    nr_cats = len(categories)
-    nr_annotations = len(anns)
-    nr_images = len(imgs)
-
-    # Load categories and super categories
-    cat_names = []
-    super_cat_names = []
-    super_cat_ids = {}
-    super_cat_last_name = ''
-    nr_super_cats = 0
-    for cat_it in categories:
-        cat_names.append(cat_it['name'])
-        super_cat_name = cat_it['supercategory']
-        # Adding new supercat
-        if super_cat_name != super_cat_last_name:
-            super_cat_names.append(super_cat_name)
-            super_cat_ids[super_cat_name] = nr_super_cats
-            super_cat_last_name = super_cat_name
-            nr_super_cats += 1
-
-    print('Number of super categories:', nr_super_cats)
-    print('Number of categories:', nr_cats)
-    print('Number of annotations:', nr_annotations)
-    print('Number of images:', nr_images)
-    # Count annotations
-    cat_histogram = np.zeros(nr_cats,dtype=int)
-    for ann in anns:
-        cat_histogram[ann['category_id']-1] += 1
-
-#    # Initialize the matplotlib figure
-#    f, ax = plt.subplots(figsize=(5,5))
-
-    # Convert to DataFrame
-    df = pd.DataFrame({'Categories': cat_names, 'Number of annotations': cat_histogram})
-    df = df.sort_values('Number of annotations', 0, False)
-
-    # category labeling 
-    sorted_temp_df = df.sort_index()
-
-    # background = 0 에 해당되는 label 추가 후 기존들을 모두 label + 1 로 설정
-    sorted_df = pd.DataFrame(["Backgroud"], columns = ["Categories"])
-    sorted_df = sorted_df.append(sorted_temp_df, ignore_index=True)
-    print(sorted_df)
-    return sorted_df    
+  
     
     
 def train_valid(epoch, model, trn_dl, val_dl, criterion, optimizer, scheduler, device, beta=0.0):
