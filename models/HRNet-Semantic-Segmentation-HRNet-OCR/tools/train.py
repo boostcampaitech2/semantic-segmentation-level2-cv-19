@@ -206,7 +206,7 @@ if __name__ == '__main__':
     parser.add_argument('--seed', type=int, default=42, help='random seed (default: 42)')    
     parser.add_argument('--saved_dir', type=str, default='./saved', help='saved_dir')   
     parser.add_argument('--num_epochs', type=int, default=20, help='num_epochs (default: 20)')    
-    parser.add_argument('--batch_size', type=int, default=4, help='batch size for training (default: 4)')    
+    parser.add_argument('--batch_size', type=int, default=16, help='batch size for training (default: 4)')    
     parser.add_argument('--use_weight', default=1, type=int)    
     parser.add_argument('--learning_rate', type=float, default=3e-4, help='learning rate (default: 1e-3)')   
     parser.add_argument('--decay', default=1e-6, type=float)        
