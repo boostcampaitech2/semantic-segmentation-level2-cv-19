@@ -101,3 +101,28 @@ class OhemCrossEntropy(nn.Module):
             w * func(x, target)
             for (w, x, func) in zip(weights, score, functions)
         ])
+
+    
+
+class DiceWCELoss(nn.Module):
+    def __init__(self, weight=None, size_average=True):
+        super(DiceWCELoss, self).__init__()
+        self.weight = weight
+
+    def forward(self, inputs, targets, smooth=1):
+        num_classes = inputs.size(1)
+        true_1_hot = torch.eye(num_classes)[targets]
+
+        true_1_hot = true_1_hot.permute(0, 3, 1, 2).float()
+        probas = F.softmax(inputs, dim=1)
+
+        true_1_hot = true_1_hot.type(inputs.type())
+        dims = (0,) + tuple(range(2, targets.ndimension()))
+        intersection = torch.sum(probas * true_1_hot, dims)
+        cardinality = torch.sum(probas + true_1_hot, dims)
+        dice_loss = ((2. * intersection + smooth) / (cardinality + smooth)).mean()
+        dice_loss = (1 - dice_loss)
+
+        wce = F.cross_entropy(inputs, targets, reduction='mean', weight=self.weight)
+        dice_wce = wce  + dice_loss 
+        return dice_wce    
