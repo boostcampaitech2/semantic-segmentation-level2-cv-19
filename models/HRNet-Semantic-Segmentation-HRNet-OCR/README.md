@@ -12,11 +12,13 @@
 - pip install -r requirements.txt   
 
 ## train하는 방법
+- HRNet-Semantic-Segmentation-HRNet-OCR 디렉토리로 이동
 - python tools/train.py --cfg experiments/bc_trash/hrnet_seg_all.yaml   
-- cfg argumen로는 hrn ocr model을 위한 yaml 파일이 필요합니다. 
+- cfg argument로는 hrn ocr model을 위한 yaml 파일이 필요합니다. 
 
 
 ## inference 및 ensemble 하는 방법
+- HRNet-Semantic-Segmentation-HRNet-OCR 디렉토리로 이동
 - python tools/test.py --cfg experiments/bc_trash/hrnet_seg.yaml --model_names seg_hrnet_ocr,unetv2_b7  --pth_files  saved/best____mIoU.pth,saved/unetv2_b7.pt   --save_file submission/best_mIoU.csv     
 - cfg argument로는 hrn ocr model을 위한 yaml 파일이 필요합니다. 
 - model_argument로는 inferene 및 ensemble할 model명이 필요합니다. 예를 들어서 hrn ocr의 경우는 hrn_ocr이고 unet version2 /  efficientnet b7의 경우는 unetv2_b7 입니다. test.py에서 지원되는 모델을 확인할 수 있습니다.
