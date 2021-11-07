@@ -64,9 +64,23 @@ sh sh/install_requirements.sh
 ```
 
 ## 4. Train
+*  HRNet OCR pretrained model download
+```
+mkdir pretrained
+cd pretrained
+wget https://github.com/HRNet/HRNet-Image-Classification/releases/download/PretrainedWeights/HRNet_W48_C_ssld_pretrained.pth
+```
 ```
 sh sh/train_hrnet.sh
 ```
+* Model
+
+|Model|backbone|model class|
+|---|---|---|
+|HRN OCR|hrnet_w48|HrnetOcr|
+|Unet++|EfficientNet b7|UnetPlusPlusB7|
+|Unet++|EfficientNet b8|UnetPlusPlusB8|
+
 
 ## 5. Test
 ```
@@ -77,3 +91,13 @@ sh sh/test_hrnet.sh
 ```
 sh sh/inference_ensemble.sh
 ```
+
+## 7. Result
+|Model|backbone|mIOU|TTA|crf|
+|---|---|---|---|---|
+|Unet++|EfficientNet-b8|0.643|o|x|
+|Unet++|EfficientNet-b7|0.654|x|x|
+|Unet++|EfficientNet-b7|0.677|x|x|
+|HRN-OCR|hrnet_w48|0.698|o|x|
+|Ensemble (3 HRN-OCR)|-|0.713|-|-|
+|Ensemble (3 HRN-OCR + 2Unet++)|-|0.699|-|-|
